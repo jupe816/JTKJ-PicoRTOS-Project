@@ -555,30 +555,26 @@ uint32_t veml6030_read_light() {
     //            Kerro arvo sopivalla kertoimella huomioiden 100 ms integraatioaika ja vahvistus 1/8
     //            käyttäen VEML6030-sovellussuunnitteluasiakirjan sivun 5 tietoja:https://www.vishay.com/docs/84367/designingveml6030.pdf
     //            Lopuksi tallenna arvo muuttujaan luxVal_uncorrected.
-    uint8_t txBuffer[1];
-    uint8_t rxBuffer[2];
+    uint8_t txBuffer[1] = { VEML6030_ALS_REG };
+    uint8_t rxBuffer[2] = { 0 };
 
-    while(1) {
-        if(i2c_write_blocking (i2c_default, VEML6030_ALS_REG, txBuffer, 1, true) != PICO_ERROR_GENERIC); 
-            if(i2c_read_blocking (i2c_default, VEML6030_ALS_REG, rxBuffer, 2, false) != PICO_ERROR_GENERIC);
+    i2c_write_blocking(i2c_default, VEML6030_I2C_ADDRESS, txBuffer, 1, true);
+    i2c_read_blocking(i2c_default, VEML6030_I2C_ADDRESS, rxBuffer, 2, false);
+    
+    uint16_t valo = ((uint16_t)rxBuffer[1] << 8) | rxBuffer[0];
+    double luxVal_uncorrected = valo * 0.5376;
 
-
-  
-    uint32_t luxVal_uncorrected = 0; 
-    if (luxVal_uncorrected>1000){
-        // Polynomial is pulled from pg 10 of the datasheet. 
-        // See https://github.com/sparkfun/SparkFun_Ambient_Light_Sensor_Arduino_Library/blob/efde0817bd6857863067bd1653a2cfafe6c68732/src/SparkFun_VEML6030_Ambient_Light_Sensor.cpp#L409
-        uint32_t luxVal = (.00000000000060135 * (pow(luxVal_uncorrected, 4))) - 
-                            (.0000000093924 * (pow(luxVal_uncorrected, 3))) + 
-                            (.000081488 * (pow(luxVal_uncorrected,2))) + 
-                            (1.0023 * luxVal_uncorrected);
-        return luxVal;
+    if (luxVal_uncorrected > 1000) {
+        double luxVal = (.000000000000060135 * pow(luxVal_uncorrected, 4))
+                    - (.0000000093924     * pow(luxVal_uncorrected, 3))
+                    + (.000081488         * pow(luxVal_uncorrected, 2))
+                    + (1.0023             * luxVal_uncorrected);
+        return (uint32_t)luxVal;
     }
-    return  luxVal_uncorrected;
-}
-}
 
+    return (uint32_t)luxVal_uncorrected;
 
+}
 
 //This method might be utility method in the future.
 static uint16_t _veml6030_read_register(uint8_t reg) {
