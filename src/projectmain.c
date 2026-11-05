@@ -14,6 +14,7 @@
 #include "tkjhat/sdk.h"
 
 #include <stdbool.h>
+#include <tusb.h>
 
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX 1
@@ -36,21 +37,37 @@ typedef enum {
 // tilakoneen esittely
 
 enum state {WAITING = 1, DATA_READY};
-enum state programState = WAITING;
+volatile enum state programState = WAITING;
+volatile position_t asento;
 
-uint32_t gyro_sensor;
+typedef struct {
+    float ax;
+    float ay;
+    float az;
+    float gx;
+    float gy;
+    float gz;
+    float t;
+} ICM42670_DATA;
 
-// 
+// ICM42670 sensor task
 static void sensor_task(void * arg) {
     (void)arg;
 
-    // initializing buzzer for testing
+    ICM42670_DATA arvot;
+
     init_ICM42670();
 
     while(1){
         if(programState == WAITING) {
-            gyro_sensor = ICM42670_read_sensor_data();
-            programState = DATA_READY;
+            if (ICM42670_read_sensor_data(&arvot.ax, &arvot.ay, &arvot.az, &arvot.gx, &arvot.gy, &arvot.gz, &arvot.t) == 0) {
+                if(fabsf(arvot.az) > 0.8f)       asento = POSITION_DOWN;
+                else if (fabsf(arvot.ax) > 0.8f) asento = POSITION_SIDE;
+                else                             asento = POSITION_NONE;
+                programState = DATA_READY;    
+            }
+            
+
         }
         
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -72,7 +89,7 @@ static void print_task(void *arg){
     
     while(1){
         if (programState == DATA_READY) {
-            printf("ASENTO: %lu \n",gyro_sensor);
+            printf("ASENTO: %lu \n", asento);
             programState = WAITING;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
