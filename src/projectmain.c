@@ -104,6 +104,7 @@ static void usbTask(void *arg) {
 }
 
 int main() {
+    stdio_init_all();
 
     init_hat_sdk();
     sleep_ms(300); //Wait some time so initialization of USB and hat is done.
@@ -119,11 +120,12 @@ int main() {
     
     
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
-
+    
     xTaskCreate(usbTask, "usb", 2048, NULL, 3, &hUSB);
     #if (configNUMBER_OF_CORES > 1)
         vTaskCoreAffinitySet(hUSB, 1u << 0);
     #endif
+    
 
 
     // Create the tasks with xTaskCreate
