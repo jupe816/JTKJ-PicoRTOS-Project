@@ -124,7 +124,9 @@ int main() {
     
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
 
-    
+    while(1){
+        
+    }
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
     
     /*
