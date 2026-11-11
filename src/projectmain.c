@@ -81,7 +81,6 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     
     gpio_get(SW1_PIN);
     
-    printf(" ");
 }
 
 static void print_task(void *arg){
@@ -102,13 +101,13 @@ static void print_task(void *arg){
     }
 }
 
-static void usbTask(void *arg) {
+/*static void usbTask(void *arg) {
     (void)arg;
     while (1) {
         tud_task();              // With FreeRTOS wait for events
                                  // Do not add vTaskDelay. 
     }
-}
+}*/
 
 int main() {
 
@@ -126,15 +125,16 @@ int main() {
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
 
     
-    
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
     
+    /*
     xTaskCreate(usbTask, "usb", 2048, NULL, 3, &hUSB);
     #if (configNUMBER_OF_CORES > 1)
         vTaskCoreAffinitySet(hUSB, 1u << 0);
     #endif
-    
-
+    */
+    //tusb_init();
+    //usb_serial_init();
 
     // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function
