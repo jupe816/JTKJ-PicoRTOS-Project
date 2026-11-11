@@ -81,7 +81,7 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     
     gpio_get(SW1_PIN);
     
-    toggle_led();
+    printf(" ");
 }
 
 static void print_task(void *arg){
@@ -89,12 +89,19 @@ static void print_task(void *arg){
     
     while(1){
         if (programState == DATA_READY) {
-            printf("ASENTO: %lu \n", asento);
+            if (asento == POSITION_DOWN){
+                printf(".");
+            }
+            else if(asento == POSITION_SIDE){
+                printf("-");
+            }
+
             programState = WAITING;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
+
 static void usbTask(void *arg) {
     (void)arg;
     while (1) {
@@ -104,6 +111,7 @@ static void usbTask(void *arg) {
 }
 
 int main() {
+
     stdio_init_all();
 
     init_hat_sdk();
