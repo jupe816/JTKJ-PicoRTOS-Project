@@ -40,6 +40,7 @@ enum state {WAITING = 1, DATA_READY};
 volatile enum state programState = WAITING;
 volatile position_t asento;
 
+
 typedef struct {
     float ax;
     float ay;
@@ -49,6 +50,7 @@ typedef struct {
     float gz;
     float t;
 } ICM42670_DATA;
+
 
 // ICM42670 sensor task
 static void sensor_task(void * arg) {
@@ -124,9 +126,7 @@ int main() {
     
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
 
-    while(1){
-        
-    }
+    
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
     
     /*
