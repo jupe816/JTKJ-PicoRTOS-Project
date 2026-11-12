@@ -18,12 +18,13 @@
 
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX 1
+#define BUTTON_DEBOUNCE_MS 750 //nappi ei ota kahta kertaa painalluksesta ku tuo pingi
 
 // laitteen asento
 typedef enum {
-    POSITION_NONE, // nollatila -> ei lähetetä
+    POSITION_UP, // laite ylöspäin -> '.'
     POSITION_SIDE, // laite kyljellään -> '-'
-    POSITION_DOWN // laite pöydällä -> '.'
+    POSITION_DOWN // nollatila/pöydällä -> ei lähetetä
 } position_t;
 
 
@@ -59,13 +60,24 @@ static void sensor_task(void * arg) {
     ICM42670_DATA arvot;
 
     init_ICM42670();
+    ICM42670_start_with_default_values();
 
     while(1){
         if(programState == WAITING) {
-            if (ICM42670_read_sensor_data(&arvot.ax, &arvot.ay, &arvot.az, &arvot.gx, &arvot.gy, &arvot.gz, &arvot.t) == 0) {
-                if(fabsf(arvot.az) > 0.8f)       asento = POSITION_DOWN;
+            /*
+            if(ICM42670_read_sensor_data(&arvot.ax, &arvot.ay, &arvot.az, &arvot.gx, &arvot.gy, &arvot.gz, &arvot.t) == 0) {
+                printf("ax=%.2f, ay=%.2f, az=%.2f\n", arvot.ax, arvot.ay, arvot.az);
+            } else {
+                printf("Epäonnistui\n");
+            }
+                toimiii tällä
+            */
+
+            
+                if (ICM42670_read_sensor_data(&arvot.ax, &arvot.ay, &arvot.az, &arvot.gx, &arvot.gy, &arvot.gz, &arvot.t) == 0) {
+                if(fabsf(arvot.ay) > 0.8f)       asento = POSITION_UP;
                 else if (fabsf(arvot.ax) > 0.8f) asento = POSITION_SIDE;
-                else                             asento = POSITION_NONE;
+                else                             asento = POSITION_DOWN;
                 programState = DATA_READY;    
             }
             
@@ -79,9 +91,18 @@ static void sensor_task(void * arg) {
 
 // haetaan alkuperäisestä main.c:stä 
 
+static volatile bool vali_lyonti = false;
+
+
 static void btn_fxn(uint gpio, uint32_t eventMask) {
-    
-    gpio_get(SW1_PIN);
+    (void)eventMask;
+    if (gpio != BUTTON1) return;
+    static uint32_t last_ms = 0;
+    uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    if ((now_ms - last_ms) < BUTTON_DEBOUNCE_MS) return;
+    last_ms = now_ms;
+    vali_lyonti = true;
+
     
 }
 
@@ -89,8 +110,13 @@ static void print_task(void *arg){
     (void)arg;
     
     while(1){
+
+        if (vali_lyonti) {
+            vali_lyonti = false;
+            printf("␣");
+        }
         if (programState == DATA_READY) {
-            if (asento == POSITION_DOWN){
+            if (asento == POSITION_UP){
                 printf(".");
             }
             else if(asento == POSITION_SIDE){
