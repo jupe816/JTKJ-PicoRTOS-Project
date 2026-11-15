@@ -37,7 +37,10 @@ typedef enum {
 
 // tilakoneen esittely
 
-enum state {WAITING = 1, DATA_READY};
+enum state {
+    WAITING = 1, DATA_READY,
+    RECEIVING, MSG_SENT
+};
 volatile enum state programState = WAITING;
 volatile position_t asento;
 
@@ -92,18 +95,24 @@ static void sensor_task(void * arg) {
 // haetaan alkuperäisestä main.c:stä 
 
 static volatile bool vali_lyonti = false;
-
+static volatile bool tilan_vaihto = false;
 
 static void btn_fxn(uint gpio, uint32_t eventMask) {
     (void)eventMask;
-    if (gpio != BUTTON1) return;
-    static uint32_t last_ms = 0;
+    static uint32_t last_ms1 = 0;
+    static uint32_t last_ms2 = 0;
     uint32_t now_ms = to_ms_since_boot(get_absolute_time());
-    if ((now_ms - last_ms) < BUTTON_DEBOUNCE_MS) return;
-    last_ms = now_ms;
-    vali_lyonti = true;
 
-    
+    if (gpio == BUTTON1) {
+        if ((now_ms - last_ms1) < BUTTON_DEBOUNCE_MS) return;
+        last_ms1 = now_ms;
+        vali_lyonti = true;
+    }
+    else if (gpio == BUTTON2) {
+        if ((now_ms - last_ms2) < BUTTON_DEBOUNCE_MS) return;
+        last_ms2 = now_ms;
+        tilan_vaihto = true;
+    }
 }
 
 static void print_task(void *arg){
@@ -111,10 +120,7 @@ static void print_task(void *arg){
     
     while(1){
 
-        if (vali_lyonti) {
-            vali_lyonti = false;
-            printf("␣");
-        }
+
         if (programState == DATA_READY) {
             if (asento == POSITION_UP){
                 printf(".");
@@ -124,6 +130,25 @@ static void print_task(void *arg){
             }
 
             programState = WAITING;
+        }
+        
+        if (vali_lyonti) {
+            vali_lyonti = false;
+            if (programState == WAITING) {
+                printf("␣");
+            }
+        }
+
+        if (tilan_vaihto) {
+            tilan_vaihto = false;
+            if (programState == WAITING) {
+                programState = RECEIVING;
+                printf("\n[vastaanotto]\n");   // testitulostus, poista myöhemmin
+            }
+            else if (programState == RECEIVING) {
+                programState = WAITING;
+                printf("\n[lahetys]\n");
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
@@ -145,12 +170,13 @@ int main() {
     sleep_ms(300); //Wait some time so initialization of USB and hat is done.
 
     init_sw1();
-    gpio_set_dir(BUTTON1, GPIO_IN);
+    init_sw2();
     
     init_led();
-    gpio_set_dir(LED1, GPIO_OUT);
+ 
     
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
+    gpio_set_irq_enabled(BUTTON2, GPIO_IRQ_EDGE_FALL, true);
 
     
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
