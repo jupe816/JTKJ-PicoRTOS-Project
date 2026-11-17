@@ -19,6 +19,7 @@
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX 1
 #define BUTTON_DEBOUNCE_MS 750 //nappi ei ota kahta kertaa painalluksesta ku tuo pingi
+#define RX_BUFFER_SIZE 64
 
 // laitteen asento
 typedef enum {
@@ -117,9 +118,8 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
 
 static void print_task(void *arg){
     (void)arg;
-    
-    while(1){
 
+    while(1){
 
         if (programState == DATA_READY) {
             if (asento == POSITION_UP){
@@ -128,10 +128,9 @@ static void print_task(void *arg){
             else if(asento == POSITION_SIDE){
                 printf("-");
             }
-
             programState = WAITING;
         }
-        
+
         if (vali_lyonti) {
             vali_lyonti = false;
             if (programState == WAITING) {
@@ -142,25 +141,61 @@ static void print_task(void *arg){
         if (tilan_vaihto) {
             tilan_vaihto = false;
             if (programState == WAITING) {
+                printf("\n");               // viestin lopetus
+                clear_display();
+                write_text("Lahetetty");
                 programState = RECEIVING;
-                printf("\n[vastaanotto]\n");   // testitulostus, poista myöhemmin
             }
             else if (programState == RECEIVING) {
                 programState = WAITING;
-                printf("\n[lahetys]\n");
+                clear_display();
             }
         }
+
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
-/*static void usbTask(void *arg) {
+static void receive_task(void *arg) {
     (void)arg;
+    char viesti[RX_BUFFER_SIZE];
+    int pituus = 0;
+
     while (1) {
-        tud_task();              // With FreeRTOS wait for events
-                                 // Do not add vTaskDelay. 
+        if (programState == RECEIVING) {
+            int c = getchar_timeout_us(0);
+            while (c != PICO_ERROR_TIMEOUT) {
+                if (c == '\n' || c == '\r') {
+                    if (pituus > 0) {               // ohitetaan tyhjä rivi (\r\n)
+                        viesti[pituus] = '\0';
+                        clear_display();
+                        write_text(viesti);
+
+                        gpio_put(LED1, 1);          // yksi välähdys per viesti
+                        vTaskDelay(pdMS_TO_TICKS(200));
+                        gpio_put(LED1, 0);
+                        
+                        pituus = 0;
+                    }
+                }
+                else if ((c == '.' || c == '-' || c == ' ') && pituus < RX_BUFFER_SIZE - 1) {
+                    viesti[pituus++] = (char)c;
+                }   
+            
+                c = getchar_timeout_us(0);
+            }
+        }
+        else {
+            // lähetystilassa: heitetään työaseman merkit pois ja aloitetaan tyhjästä
+            while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+            pituus = 0;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
-}*/
+}
+
+
+
 
 int main() {
 
@@ -173,6 +208,7 @@ int main() {
     init_sw2();
     
     init_led();
+    init_display();
  
     
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
@@ -181,16 +217,7 @@ int main() {
     
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
     
-    /*
-    xTaskCreate(usbTask, "usb", 2048, NULL, 3, &hUSB);
-    #if (configNUMBER_OF_CORES > 1)
-        vTaskCoreAffinitySet(hUSB, 1u << 0);
-    #endif
-    */
-    //tusb_init();
-    //usb_serial_init();
 
-    // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function
                 "sensor",                        // (en) Name of the task 
                 DEFAULT_STACK_SIZE,              // (en) Size of the stack for this task (in words). Generally 1024 or 2048
@@ -211,6 +238,18 @@ int main() {
 
     if(result != pdPASS) {
         printf("Print Task creation failed\n");
+        return 0;
+    }
+
+        result = xTaskCreate(receive_task,
+                    "receive",
+                    DEFAULT_STACK_SIZE,
+                    NULL,
+                    2,
+                    NULL);
+
+    if(result != pdPASS) {
+        printf("Receive task creation failed\n");
         return 0;
     }
 
