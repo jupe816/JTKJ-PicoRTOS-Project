@@ -1,23 +1,20 @@
 
 // kirjastot, samat kuin alkuperäisessä main.c:ssä, lisätty stdbool.h ja math.h
 #include <stdio.h>
-#include <string.h>
 #include <math.h>
 #include <stdint.h>
 
 #include <pico/stdlib.h>
 
 #include <FreeRTOS.h>
-#include <queue.h>
 #include <task.h>
 
 #include "tkjhat/sdk.h"
 
 #include <stdbool.h>
-#include <tusb.h>
+
 
 #define DEFAULT_STACK_SIZE 2048
-#define CDC_ITF_TX 1
 #define BUTTON_DEBOUNCE_MS 750 //nappi ei ota kahta kertaa painalluksesta ku tuo pingi
 #define RX_BUFFER_SIZE 64
 
@@ -29,18 +26,12 @@ typedef enum {
 } position_t;
 
 
-
-// nappi
-typedef enum {
-    EVENT_BUTTON1,
-    EVENT_BUTTON2
-} button_event_t;
-
 // tilakoneen esittely
 
 enum state {
-    WAITING = 1, DATA_READY,
-    RECEIVING, MSG_SENT
+    WAITING = 1,        //WAITING: lähetystila, odotetaan seuraavaa anturilukemaa,
+    DATA_READY,        //DATA_READY: anturi on luettu ja asento on valmis lähetettäväksi   
+    RECEIVING           //RECEIVING: vastaanottotila, kuunnellaan työasemaa
 };
 volatile enum state programState = WAITING;
 volatile position_t asento;
@@ -57,8 +48,8 @@ typedef struct {
 } ICM42670_DATA;
 
 
-// ICM42670 sensor task
-static void sensor_task(void * arg) {
+
+static void sensor_task(void * arg) {  //Tunnistaa laitteen asennon
     (void)arg;
 
     ICM42670_DATA arvot;
@@ -83,7 +74,7 @@ static void sensor_task(void * arg) {
                 else if (fabsf(arvot.ax) > 0.8f) asento = POSITION_SIDE;
                 else                             asento = POSITION_DOWN;
                 programState = DATA_READY;    
-            }
+            } 
             
 
         }
@@ -98,7 +89,7 @@ static void sensor_task(void * arg) {
 static volatile bool vali_lyonti = false;
 static volatile bool tilan_vaihto = false;
 
-static void btn_fxn(uint gpio, uint32_t eventMask) {
+static void btn_fxn(uint gpio, uint32_t eventMask) {  
     (void)eventMask;
     static uint32_t last_ms1 = 0;
     static uint32_t last_ms2 = 0;
@@ -121,7 +112,7 @@ static void print_task(void *arg){
 
     while(1){
 
-        if (programState == DATA_READY) {
+        if (programState == DATA_READY) {  
             if (asento == POSITION_UP){
                 printf(".");
             }
@@ -171,7 +162,7 @@ static void receive_task(void *arg) {
                         clear_display();
                         write_text(viesti);
 
-                        gpio_put(LED1, 1);          // yksi välähdys per viesti
+                        gpio_put(LED1, 1);          // Viestin vastaanottamisen yhteydessä väläytetään lediä
                         vTaskDelay(pdMS_TO_TICKS(200));
                         gpio_put(LED1, 0);
                         
@@ -215,7 +206,7 @@ int main() {
     gpio_set_irq_enabled(BUTTON2, GPIO_IRQ_EDGE_FALL, true);
 
     
-    TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
+    TaskHandle_t hSensorTask, hPrintTask = NULL;
     
 
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function
