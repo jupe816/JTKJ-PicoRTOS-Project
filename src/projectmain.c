@@ -3,22 +3,18 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
-
 #include <pico/stdlib.h>
-
 #include <FreeRTOS.h>
 #include <task.h>
-
 #include "tkjhat/sdk.h"
-
 #include <stdbool.h>
 
 
 #define DEFAULT_STACK_SIZE 2048
 #define BUTTON_DEBOUNCE_MS 750 //nappi ei ota kahta kertaa painalluksesta ku tuo pingi
-#define RX_BUFFER_SIZE 64
+#define RX_BUFFER_SIZE 64 // vastaanotto bufferin koko
 
-// laitteen asento
+// Määritetään laitteen asennot
 typedef enum {
     POSITION_UP, // laite ylöspäin -> '.'
     POSITION_SIDE, // laite kyljellään -> '-'
@@ -33,10 +29,21 @@ enum state {
     DATA_READY,        //DATA_READY: anturi on luettu ja asento on valmis lähetettäväksi   
     RECEIVING           //RECEIVING: vastaanottotila, kuunnellaan työasemaa
 };
+
+/*
+https://stackoverflow.com/questions/246127/why-is-volatile-needed-in-c
+Tuon sivun avulla teimme sen, ettei nämä parametrit muutu ohjelman aikana.
+volatile, koska tilat muuttuvat keskeytyksissä/taskeissa
+*/
 volatile enum state programState = WAITING;
 volatile position_t asento;
 
-
+/*
+Luodaan ICM42670 sensorin lukemista varten parametrit.
+ax, ay ja az ovat kiihtyvyyden parametrit
+gx, gy ja gz ovat pyörimisen parametrit
+Näitä tarvitaan siihen, että voidaan lukea, missä asennossa tkjHAT on
+*/
 typedef struct {
     float ax;
     float ay;
@@ -52,6 +59,7 @@ typedef struct {
 static void sensor_task(void * arg) {  //Tunnistaa laitteen asennon
     (void)arg;
 
+    // Tallennetaan sensorin arvot paikalliseen muuttujaan
     ICM42670_DATA arvot;
 
     init_ICM42670();
@@ -60,12 +68,17 @@ static void sensor_task(void * arg) {  //Tunnistaa laitteen asennon
     while(1){
         if(programState == WAITING) {
             /*
+            Testasimme ensin tällä tavalla sensordatan lukemisen. Tulostimme siis aina sensorin arvot.
             if(ICM42670_read_sensor_data(&arvot.ax, &arvot.ay, &arvot.az, &arvot.gx, &arvot.gy, &arvot.gz, &arvot.t) == 0) {
                 printf("ax=%.2f, ay=%.2f, az=%.2f\n", arvot.ax, arvot.ay, arvot.az);
             } else {
                 printf("Epäonnistui\n");
             }
-                toimiii tällä
+
+            Varsinainen sensoridatan lukeminen tehtiin seuraavalla tavalla.
+            Lisäksi sensoridatan perusteella määritimme laitteen asennon.
+            Määritimme asennot siten, että laite voi olla kummalla tahansa kyljellä ja siksi käytettiin itseisarvoja.
+            Käytimme tässä apuna tekoälyä ja kysyimme "Miten saadaan tietty asento ICM42670 sensoridatan avulla määritettyä"
             */
 
             
@@ -84,11 +97,16 @@ static void sensor_task(void * arg) {  //Tunnistaa laitteen asennon
 }
 
 
-// haetaan alkuperäisestä main.c:stä 
+
 
 static volatile bool vali_lyonti = false;
 static volatile bool tilan_vaihto = false;
 
+/*
+Nappien toiminta.
+Toista nappia halusimme käyttää välilyöntinä ja toista tilanvaihdossa.
+Napeille on määritetty debounce aika, jonka avulla saavutetaan se, ettei nappi ota vahingossa kahdesti.
+*/
 static void btn_fxn(uint gpio, uint32_t eventMask) {  
     (void)eventMask;
     static uint32_t last_ms1 = 0;
@@ -107,6 +125,11 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     }
 }
 
+/*
+Tulostusfunktiossa käytimme apuna sensortask funktion antamia laitteen asentoja.
+Kun asento on kyljellään tai ylös, tulostuu - tai .
+
+*/
 static void print_task(void *arg){
     (void)arg;
 
@@ -147,6 +170,9 @@ static void print_task(void *arg){
     }
 }
 
+/*
+
+*/
 static void receive_task(void *arg) {
     (void)arg;
     char viesti[RX_BUFFER_SIZE];
