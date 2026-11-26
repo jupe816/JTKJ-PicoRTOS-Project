@@ -171,7 +171,9 @@ static void print_task(void *arg){
 }
 
 /*
-
+receive_task toiminta:
+Lukee sarjaportista saapuvia merkkejä ja kokoaa ne yhdeksi viestiksi,
+kunnes tulee rivinvaihto. Sen jälkeen viesti näytetään näytöllä.
 */
 static void receive_task(void *arg) {
     (void)arg;
