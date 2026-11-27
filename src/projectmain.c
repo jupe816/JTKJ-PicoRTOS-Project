@@ -1,4 +1,4 @@
-
+// Tekijät : Lari Huhtala, Justus Jolma, Iiro Kinisjärvi
 // kirjastot, samat kuin alkuperäisessä main.c:ssä, lisätty stdbool.h ja math.h
 #include <stdio.h>
 #include <math.h>
